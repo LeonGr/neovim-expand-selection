@@ -19,10 +19,13 @@ local function get_parent(node)
     return node:parent() or node
 end
 
+local function get_node_text(buf, node)
+    return unpack(ts_utils.get_node_text(node, buf))
+end
+
 -- convert node to text and return the first character
 local function get_first_char(buf, node)
-    local node_text = unpack(ts_utils.get_node_text(node, buf))
-    return node_text:sub(1, 1)
+    return (get_node_text(buf, node)):sub(1, 1)
 end
 
 local function select_in_node(buf, node, char)
@@ -57,14 +60,24 @@ local function expsel()
     end
 
     local node = ts_utils.get_node_at_cursor()
+    local node_startline, node_startcol, node_endline, node_endcol = node:range()
     local char = get_first_char(buf, node)
-    local parent = get_parent(node)
 
-    -- find a parent node that starts with the same first character as the current node by looping over parents
+    local parent = get_parent(node)
+    local parent_startline, parent_startcol, parent_endline, parent_endcol = parent:range()
+
+    -- find a parent node that starts with the same first character as the current node
+    -- by looping over parents
     local has_parent = false
-    while get_first_char(buf, parent) ~= char do
+    while get_first_char(buf, parent) ~= char or
+          -- if the start positions are equal it's not a parent
+          (node_startline == parent_startline and node_startcol == parent_startcol) or
+          -- if the end positions are equal it's not a parent
+          (node_endline == parent_endline and node_endcol == parent_endcol) do
+
         local oldparent = parent
         parent = get_parent(parent)
+        parent_startline, parent_startcol, parent_endline, parent_endcol = parent:range()
 
         -- this stops the loop once there are no more parents
         if parent == oldparent then
@@ -77,10 +90,13 @@ local function expsel()
         end
     end
 
+    --select_in_node(buf, parent, char)
     if has_parent then
+        print("has parent")
         -- if there is a parent, select inside that
         select_in_node(buf, parent, char)
     else
+        print("no parent")
         -- otherwise select original node again
         select_in_node(buf, node, char)
     end
